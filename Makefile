@@ -23,12 +23,12 @@ run_app:
 	find pages_files -exec sed -i.bak 's|_dash-layout|healthbiodatascientist/_dash-layout.json|g' {} \;
 	find pages_files -exec sed -i.bak 's|_dash-dependencies|healthbiodatascientist/_dash-dependencies.json|g' {} \;
 	find pages_files -exec sed -i.bak 's|_reload-hash|healthbiodatascientist/_reload-hash|g' {} \;
-	find pages_files -exec sed -i.bak 's|_dash-update-component|healthbiodatascientistl/_dash-update-component|g' {} \;
+	find pages_files -exec sed -i.bak 's|_dash-update-component|healthbiodatascientist/_dash-update-component|g' {} \;
 	find pages_files -exec sed -i.bak 's|assets|healthbiodatascientist/assets|g' {} \;
 
 	mv pages_files/_dash-layout pages_files/_dash-layout.json
 	mv pages_files/_dash-dependencies pages_files/_dash-dependencies.json
-	mv assets/* pages_files/
+	mv assets/* pages_files/assets
 
 	ps -C python -o pid= | xargs kill -9
 
