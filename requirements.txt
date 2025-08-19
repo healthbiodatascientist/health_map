@@ -1,0 +1,7 @@
+pandas
+matplotlib
+dash
+dash_bootstrap_components
+pyogrio
+mapclassify
+folium
