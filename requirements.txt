@@ -6,3 +6,4 @@ geopandas
 pyogrio
 mapclassify
 folium
+Gunicorn
