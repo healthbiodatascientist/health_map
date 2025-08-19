@@ -1,83 +1,109 @@
-import numpy as np
-from dash import Dash, html, dcc, Input, Output  # pip install dash
-import plotly.express as px
-import dash_ag_grid as dag
-import dash_bootstrap_components as dbc   # pip install dash-bootstrap-components
-import pandas as pd     # pip install pandas
-import matplotlib      # pip install matplotlib
+#!/usr/bin/env python
+# coding: utf-8
+
+# Import libraries/packages
+
+# In[1]:
+
+
+import pandas as pd
+import matplotlib 
 matplotlib.use('agg')
-import matplotlib.pyplot as plt
-import base64
-from io import BytesIO
-import gunicorn
+from dash import Dash, html, dash_table
+import dash_bootstrap_components as dbc
+from pyogrio import read_dataframe
+import folium
 
-def table_clean():
-    df_hosp_beds = pd.read_csv('https://raw.githubusercontent.com/healthbiodatascientist/Health-Dash/refs/heads/main/beds_by_nhs_board-of-treatment_specialty.csv')
-    df_region = pd.read_csv('https://raw.githubusercontent.com/healthbiodatascientist/Health-Dash/refs/heads/main/Health_Boards_(Dec_2020)_Names_and_Codes_in_Scotland.csv')
-    df_hosp_beds = df_hosp_beds.set_index('HB')
-    df_hb_beds = df_hosp_beds.join(df_region.set_index('HB20CD'), on='HB') # join health board region names
-    df_hb_beds = df_hb_beds.filter(items=['FinancialYear', 'SpecialtyName', 'HB20NM', 'PercentageOccupancy', 'AverageAvailableStaffedBeds', 'AllStaffedBeds'])
-    return df_hb_beds
 
-df_hb_beds = table_clean()
+# Import and filter data
+
+# In[2]:
+
+
+df_hb_beds_filter = pd.read_csv('https://raw.githubusercontent.com/healthbiodatascientist/health_map/refs/heads/main/HealthBoardDataFinal.csv')
+def no_geometry():
+    df_hb_beds_filter = pd.read_csv('https://raw.githubusercontent.com/healthbiodatascientist/health_map/refs/heads/main/HealthBoardDataFinal.csv')
+    df_hb_beds_table = df_hb_beds_filter.drop('geometry', axis=1)
+    df_hb_beds_table['Emergency Patients Rate'] = df_hb_beds_table['Emergency Patients Rate'].astype(float)
+    df_hb_beds_table['Median Ambulance Turnaround Time (min)'] = df_hb_beds_table['Median Ambulance Turnaround Time (min)'].astype(int)
+    df_hb_beds_table['Length Emergency Stays Rate'] = df_hb_beds_table['Length Emergency Stays Rate'].astype(float)
+    df_hb_beds_table = df_hb_beds_table.set_index('HBCode')
+    return df_hb_beds_table
+df_hb_beds_table = no_geometry()
+df_numeric_columns = df_hb_beds_table.select_dtypes('number')
+
+
+# In[3]:
+
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-app.layout = dbc.Container([
-    html.H3("Choose a year and a specialty from the list below:", className='mb-2', style={'textAlign':'left'}),
-    dbc.Row([dbc.Col([dcc.Dropdown(id='year', value='2023/24', clearable=False, options=np.unique(df_hb_beds['FinancialYear'].values)) ], width=4)]),
-    dbc.Row([dbc.Col([dcc.Dropdown(id='specialism', value='All Specialties', clearable=False, options=np.unique(df_hb_beds['SpecialtyName'].values)) ], width=4)]),
-    html.H1("Beds Available in Scottish Health Boards", className='mb-2', style={'textAlign':'center'}),
-    dbc.Row([dbc.Col([dcc.Dropdown(id='category', value='PercentageOccupancy', clearable=False, options=df_hb_beds.columns[3:6]) ], width=4)]),
-    dbc.Row([dbc.Col([html.Img(id='bar-graph-matplotlib')], width=8)]),
-    dbc.Row([dbc.Col([dcc.Graph(id='bar-graph-plotly', figure={})], width=8, md=6),
-             dbc.Col([dag.AgGrid(id='grid', rowData=df_hb_beds.to_dict("records"), columnDefs=[{"field": i} for i in df_hb_beds.columns], columnSize="sizeToFit",)], width=12, md=6),
-             ], className='mt-4'),])
-@app.callback(
-    Output(component_id='bar-graph-matplotlib', component_property='src'),
-    Output('bar-graph-plotly', 'figure'),
-    Output('grid', 'defaultColDef'),
-    Input('year', 'value'),
-    Input('specialism', 'value'),
-    Input('category', 'value'),
     
-)
-
-def plot_data(year, specialism, selected_yaxis):
-
-    # Build the matplotlib figure
-    df_hb_beds = table_clean()
-    df_hb_beds = df_hb_beds.loc[df_hb_beds['FinancialYear'].str.startswith(year, na=False)] # filter for year
-    df_hb_beds = df_hb_beds.loc[df_hb_beds['SpecialtyName'] == specialism] # filter for specialism
-    df_hb_beds = df_hb_beds.filter(items=['HB20NM', 'PercentageOccupancy', 'AverageAvailableStaffedBeds', 'AllStaffedBeds'])
-    fig = plt.figure(figsize=(12, 6), constrained_layout=True)
-    plt.bar(df_hb_beds['HB20NM'], df_hb_beds[selected_yaxis], color='blue')
-    plt.ylabel(selected_yaxis)
-    plt.xticks(rotation=90)
-    bar_container = plt.bar(df_hb_beds['HB20NM'], df_hb_beds[selected_yaxis])
-    plt.bar_label(bar_container, fmt='{:,.0f}')
-
-    # Save it to a temporary buffer.
-    buf = BytesIO()
-    fig.savefig(buf, format="png")
-    # Embed the result in the html output.
-    fig_data = base64.b64encode(buf.getbuffer()).decode("ascii")
-    fig_bar_matplotlib = f'data:image/png;base64,{fig_data}'
-
-    # Build the Plotly figure
-    fig_bar_plotly = px.bar(df_hb_beds, x='HB20NM', y=selected_yaxis).update_xaxes(tickangle=330)
-
-    my_cellStyle = {
-        "styleConditions": [
+app.layout = dbc.Container([
+    html.H1("Regional Scottish Health Board Acute Case Data 2023/24", className='mb-2', style={'padding': '10px 10px', 'textAlign':'center'}),
+    dbc.Row([dbc.Col(html.Summary("The map below displays the last full set of combined open source data from Public Health Scotland (PHS) and the Scottish Ambulance Service (SAS) for each of the Scottish Health Board Regions. Hover over your Health Board for an insight into the factors affecting the efficiency of acute care:", className='mb-2', style={'padding': '10px 10px', 'list-style': 'none'}))]),
+    dbc.Row([dbc.Col(html.Iframe(id='my_output', height=600, width=1000, srcDoc=open('foliummap.html', 'r').read()))]),
+    html.Figcaption("Figure 1: Map of the 2023/24 open health data for the Scottish Health Board Regions", className='mb-2', style={'padding': '10px 10px', 'textAlign':'center'}),
+    html.H4("SAS, NHS Scotland and Scottish Government Targets for 2023/24", className='mb-2', style={'margin-top': '1em', 'padding': '10px 10px', 'textAlign': 'center'}),
+    html.Summary("Percentage Emergencies Conveyed: No specific SAS targets set in 2023/24. However, high volumes of ambulance conveyances to A&E departments can significantly worsen waiting times. This is because increased ambulance arrivals can lead to overcrowding, putting strain on resources and staff, and ultimately resulting in longer waits for all patients, including those who arrive by other means", className='mb-2'),
+    html.Summary("Median Ambulance Turnaround Time (min): Target of median turnaround time within 40 minutes set by SAS 2023/24", className='mb-2'),
+    html.Summary("Emergency Patients Rate: No specific Scottish Government or NHS targets set in 2023/24. However, high numbers of emergency patients significantly increase waiting times in A&E departments. This is due to increased demand on resources, particularly hospital beds, leading to longer waits for assessment, treatment, and admission", className='mb-2'),
+    html.Summary("Percentage Within 4 Hours A&E, Percentage Over 4, 8, and 12 Hours A&E: Target of 95% of people attending A&E should be seen, admitted, discharged, or transferred within 4 hours set by Scottish Government 2010", className='mb-2'),
+    html.Summary("Percentage Occupancy Acute Beds: In NHS Scotland, 92% bed occupancy is considered a benchmark, but not an absolute standard. The 2023/24 operational planning guidance set 92% as the maximum for bed occupancy, as high occupancy can negatively impact patient flow, waiting times, and infection control", className='mb-2'),
+    html.Summary("Length Emergency Stays Rate: No specific Scottish Government targets set in 2023/24. However, a higher proportion of patients with long lengths of stay in hospitals is directly associated with increased A&E waiting times, particularly for those waiting to be admitted", className='mb-2', style={'margin-bottom': '1em'}),
+    html.Figcaption("Table 1: 2023/24 open health data for the Scottish Health Board Regions with the highest 3 column values highlighted in dark blue", className='mb-2', style={'margin-bottom': '1em', 'padding': '10px 10px', 'textAlign':'center'}),
+    dbc.Row([dbc.Col(dash_table.DataTable(
+    data=df_hb_beds_table.to_dict('records'),
+    sort_action='native',
+    columns=[{'name': i, 'id': i} for i in df_hb_beds_table.columns],
+    style_cell={'textAlign': 'center'},
+    fixed_columns={'headers': True, 'data': 1},
+    style_table={'minWidth': '100%'},
+    style_data_conditional=
+    [
             {
-                "condition": f"params.colDef.field == '{selected_yaxis}'",
-                "style": {"backgroundColor": "#d3d3d3"},
-            },
-            {   "condition": f"params.colDef.field != '{selected_yaxis}'",
-                "style": {"color": "black"}
-            },
+                'if': {
+                    'filter_query': '{{{}}} > {}'.format(col, value),
+                    'column_id': col
+                },
+                'backgroundColor': '#00008B',
+                'color': 'white'
+            } for (col, value) in df_numeric_columns.quantile(0.1).items()
+        ] +       
+        [
+            {
+                'if': {
+                    'filter_query': '{{{}}} <= {}'.format(col, value),
+                    'column_id': col
+                },
+                'backgroundColor': '#65D8EC',
+                'color': 'white'
+            } for (col, value) in df_numeric_columns.quantile(0.8).items()
         ]
-    }
+    ))
+    ]),
+    html.H4("Open Data Links", className='mb-2', style={'margin-top': '1em', 'padding': '10px 10px', 'textAlign': 'center'}),
+    html.Summary("Public Health Scotland"),
+    html.Link(href="https://www.opendata.nhs.scot/dataset/7e21f62c-64a1-4aa7-b160-60cbdd8a700d/resource/5d55964b-8e45-4c49-bfdd-9ea3e1fb962d/download/beds_by_nhs_board-of-treatment_specialty.csv", rel="stylesheet"),
+    html.Link(href="https://www.opendata.nhs.scot/dataset/0d57311a-db66-4eaa-bd6d-cc622b6cbdfa/resource/a5f7ca94-c810-41b5-a7c9-25c18d43e5a4/download/weekly_ae_activity_20250810.csv", rel="stylesheet"),
+    html.Link(href="https://publichealthscotland.scot/media/29058/table-3-multiple-emergency-admissions-2023-24.xlsx", rel="stylesheet"),
+    html.Summary("Scottish Ambulance Service"),
+    html.Link(href="https://www.scottishambulance.com/publications/previous-unscheduled-care-operational-statistics/", rel="stylesheet"),
+    html.Link(href="https://www.scottishambulance.com/media/teapv5hp/foi-24-296-service-target-times.pdf", rel="stylesheet"),
+    ])
+    
+def create_map():
+    # imports, filters and joins the data and produces the map
+    df_hb_beds_filter = table_clean()
+    foliummap = folium.Map(location=[55.941457, -3.205744], zoom_start=6)
+    mapped = df_hb_beds_filter.explore(m=foliummap, column='HB Name')
+    mapped.save('foliummap.html')
 
-    return fig_bar_matplotlib, fig_bar_plotly, {'cellStyle': my_cellStyle}
-if __name__ == '__main__':
-    app.run()
+    return mapped
+
+
+# In[4]:
+
+
+if __name__ == "__main__":
+    app.run(port=8051)
+
