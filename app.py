@@ -22,9 +22,9 @@ import folium
 
 
 df_hb_beds_filter = pd.read_csv('https://raw.githubusercontent.com/healthbiodatascientist/health_map/refs/heads/main/HealthBoardDataFinal.csv')
-df_hb_beds_filter = df_hb_beds_filter.set_index('HBCode')
 def no_geometry():
     df_hb_beds_filter = pd.read_csv('https://raw.githubusercontent.com/healthbiodatascientist/health_map/refs/heads/main/HealthBoardDataFinal.csv')
+    df_hb_beds_filter = df_hb_beds_filter.set_index('HBCode')
     df_hb_beds_table = df_hb_beds_filter.drop('geometry', axis=1)
     df_hb_beds_table['Emergency Patients Rate'] = df_hb_beds_table['Emergency Patients Rate'].astype(float)
     df_hb_beds_table['Median Ambulance Turnaround Time (min)'] = df_hb_beds_table['Median Ambulance Turnaround Time (min)'].astype(int)
@@ -44,7 +44,7 @@ app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.layout = dbc.Container([
     html.H1("Regional Scottish Health Board Acute Case Data 2023/24", className='mb-2', style={'padding': '10px 10px', 'textAlign':'center'}),
     dbc.Row([dbc.Col(html.Summary("The map below displays the last full set of combined open source data from Public Health Scotland (PHS) and the Scottish Ambulance Service (SAS) for each of the Scottish Health Board Regions. Click on your Health Board for an insight into the factors affecting the efficiency of acute care:", className='mb-2', style={'padding': '10px 10px', 'list-style': 'none'}))]),
-    dbc.Row([dbc.Col(html.Iframe(id='my_output', height=600, width=1000, srcDoc=open('foliummap.html', 'r').read(), style={'object-position': 'center'}))]),
+    dbc.Row([dbc.Col(html.Iframe(id='my_output', height=600, width=1000, srcDoc=open('foliummap.html', 'r').read()), style={'object-position': 'center'})]),
     html.Figcaption("Figure 1: Map of the 2023/24 open health data for the Scottish Health Board Regions", className='mb-2', style={'padding': '10px 10px', 'textAlign':'center'}),
     html.H4("SAS, NHS Scotland and Scottish Government Targets for 2023/24", className='mb-2', style={'margin-top': '1em', 'padding': '10px 10px', 'textAlign': 'center'}),
     html.Summary("Percentage Emergencies Conveyed: No specific SAS targets set in 2023/24. However, high volumes of ambulance conveyances to A&E departments can significantly worsen waiting times. This is because increased ambulance arrivals can lead to overcrowding, putting strain on resources and staff, and ultimately resulting in longer waits for all patients, including those who arrive by other means", className='mb-2'),
